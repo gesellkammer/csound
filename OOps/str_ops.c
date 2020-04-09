@@ -583,7 +583,7 @@ int32_t printf_opcode_set(CSOUND *csound, PRINTF_OP *p)
 int32_t printf_opcode_perf(CSOUND *csound, PRINTF_OP *p)
 {
     MYFLT ktrig = *p->ktrig;
-    if(ktrig == -1)
+    if(ktrig < FL(0.0))
       return (printf_opcode_(csound, p));
     if(ktrig == p->prv_ktrig)
       return OK;
@@ -595,123 +595,123 @@ int32_t printf_opcode_perf(CSOUND *csound, PRINTF_OP *p)
 
 int32_t puts_opcode_init(CSOUND *csound, PUTS_OP *p)
 {
-    p->noNewLine = (*p->no_newline == FL(0.0) ? 0 : 1);
-    if (*p->ktrig > FL(0.0)) {
-      if (!p->noNewLine)
-        csound->MessageS(csound, CSOUNDMSG_ORCH, "%s\n", (char*) p->str->data);
-      else
-        csound->MessageS(csound, CSOUNDMSG_ORCH, "%s", (char*) p->str->data);
-    }
-    p->prv_ktrig = *p->ktrig;
+  p->noNewLine = (*p->no_newline == FL(0.0) ? 0 : 1);
+  if (*p->ktrig > FL(0.0)) {
+    if (!p->noNewLine)
+      csound->MessageS(csound, CSOUNDMSG_ORCH, "%s\n", (char*) p->str->data);
+    else
+      csound->MessageS(csound, CSOUNDMSG_ORCH, "%s", (char*) p->str->data);
+  }
+  p->prv_ktrig = *p->ktrig;
 
-    return OK;
+  return OK;
 }
 
 int32_t puts_opcode_perf(CSOUND *csound, PUTS_OP *p)
 {
-    if (*p->ktrig != p->prv_ktrig && *p->ktrig > FL(0.0)) {
-      p->prv_ktrig = *p->ktrig;
-      if (!p->noNewLine)
-        csound->MessageS(csound, CSOUNDMSG_ORCH, "%s\n", (char*) p->str->data);
-      else
-        csound->MessageS(csound, CSOUNDMSG_ORCH, "%s", (char*) p->str->data);
-    }
+  if (*p->ktrig != p->prv_ktrig && *p->ktrig > FL(0.0)) {
+    p->prv_ktrig = *p->ktrig;
+    if (!p->noNewLine)
+      csound->MessageS(csound, CSOUNDMSG_ORCH, "%s\n", (char*) p->str->data);
+    else
+      csound->MessageS(csound, CSOUNDMSG_ORCH, "%s", (char*) p->str->data);
+  }
 
-    return OK;
+  return OK;
 }
 
 int32_t strtod_opcode_p(CSOUND *csound, STRTOD_OP *p)
 {
-    char    *s = NULL, *tmp;
-    double  x;
+  char    *s = NULL, *tmp;
+  double  x;
 
-    if (csound->ISSTRCOD(*p->str))
-      s = get_arg_string(csound, *p->str);
-    else {
-      int32_t ndx = (int32_t) MYFLT2LRND(*p->str);
-      if (ndx >= 0 && ndx <= (int32_t) csound->strsmax && csound->strsets != NULL)
-        s = csound->strsets[ndx];
-    }
-    if (UNLIKELY(s == NULL))
-      return StrOp_ErrMsg(p, Str("empty string"));
-    while (isblank(*s)) s++;
-    if (UNLIKELY(*s == '\0'))
-     return StrOp_ErrMsg(p, Str("empty string"));
-    x = cs_strtod(s, &tmp);
-    if (UNLIKELY(*tmp != '\0'))
-      return StrOp_ErrMsg(p, Str("invalid format"));
-    *p->indx = (MYFLT) x;
+  if (csound->ISSTRCOD(*p->str))
+    s = get_arg_string(csound, *p->str);
+  else {
+    int32_t ndx = (int32_t) MYFLT2LRND(*p->str);
+    if (ndx >= 0 && ndx <= (int32_t) csound->strsmax && csound->strsets != NULL)
+      s = csound->strsets[ndx];
+  }
+  if (UNLIKELY(s == NULL))
+    return StrOp_ErrMsg(p, Str("empty string"));
+  while (isblank(*s)) s++;
+  if (UNLIKELY(*s == '\0'))
+    return StrOp_ErrMsg(p, Str("empty string"));
+  x = cs_strtod(s, &tmp);
+  if (UNLIKELY(*tmp != '\0'))
+    return StrOp_ErrMsg(p, Str("invalid format"));
+  *p->indx = (MYFLT) x;
 
-    return OK;
+  return OK;
 }
 
 int32_t strtod_opcode_S(CSOUND *csound, STRSET_OP *p)
 {
-    IGN(csound);
-    char    *s = NULL, *tmp;
-    double  x;
-    s = (char*) p->str->data;
-    while (isblank(*s)) s++;
-    if (UNLIKELY(*s == '\0'))
-     return StrOp_ErrMsg(p, Str("empty string"));
-    x = cs_strtod(s, &tmp);
-    if (UNLIKELY(*tmp != '\0'))
-     return StrOp_ErrMsg(p, Str("invalid format"));
-    *p->indx = (MYFLT) x;
+  IGN(csound);
+  char    *s = NULL, *tmp;
+  double  x;
+  s = (char*) p->str->data;
+  while (isblank(*s)) s++;
+  if (UNLIKELY(*s == '\0'))
+    return StrOp_ErrMsg(p, Str("empty string"));
+  x = cs_strtod(s, &tmp);
+  if (UNLIKELY(*tmp != '\0'))
+    return StrOp_ErrMsg(p, Str("invalid format"));
+  *p->indx = (MYFLT) x;
 
-    return OK;
+  return OK;
 }
 
 int32_t strtol_opcode_S(CSOUND *csound, STRSET_OP *p)
 {
-    IGN(csound);
-    char  *s = NULL;
-    int32_t   sgn = 0, radix = 10;
-    int32_t  x = 0;
+  IGN(csound);
+  char  *s = NULL;
+  int32_t   sgn = 0, radix = 10;
+  int32_t  x = 0;
 
-    s = (char*) p->str->data;
-    while (isblank(*s)) s++;
-    if (UNLIKELY(*s == '\0'))
-      return StrOp_ErrMsg(p, Str("empty string"));
-    if (*s == '+') s++;
-    else if (*s == '-') sgn++, s++;
-    if (*s == '0') {
-      if (s[1] == 'x' || s[1] == 'X')
-        radix = 16, s += 2;
-      else if (s[1] != '\0')
-        radix = 8, s++;
-      else {
-        *p->indx = FL(0.0);
-        return OK;
-      }
+  s = (char*) p->str->data;
+  while (isblank(*s)) s++;
+  if (UNLIKELY(*s == '\0'))
+    return StrOp_ErrMsg(p, Str("empty string"));
+  if (*s == '+') s++;
+  else if (*s == '-') sgn++, s++;
+  if (*s == '0') {
+    if (s[1] == 'x' || s[1] == 'X')
+      radix = 16, s += 2;
+    else if (s[1] != '\0')
+      radix = 8, s++;
+    else {
+      *p->indx = FL(0.0);
+      return OK;
     }
-    if (UNLIKELY(*s == '\0'))
-      return StrOp_ErrMsg(p, Str("invalid format"));
-    switch (radix) {
-      case 8:
-        while (*s >= '0' && *s <= '7') x = (x * 8L) + (int32_t) (*s++ - '0');
+  }
+  if (UNLIKELY(*s == '\0'))
+    return StrOp_ErrMsg(p, Str("invalid format"));
+  switch (radix) {
+  case 8:
+    while (*s >= '0' && *s <= '7') x = (x * 8L) + (int32_t) (*s++ - '0');
+    break;
+  case 10:
+    while (isdigit(*s)) x = (x * 10L) + (int32_t) (*s++ - '0');
+    break;
+  default:
+    while (1) {
+      if (isdigit(*s))
+        x = (x * 16L) + (int32_t) (*s++ - '0');
+      else if (*s >= 'A' && *s <= 'F')
+        x = (x * 16L) + (int32_t) (*s++ - 'A') + 10L;
+      else if (*s >= 'a' && *s <= 'f')
+        x = (x * 16L) + (int32_t) (*s++ - 'a') + 10L;
+      else
         break;
-      case 10:
-        while (isdigit(*s)) x = (x * 10L) + (int32_t) (*s++ - '0');
-        break;
-      default:
-        while (1) {
-          if (isdigit(*s))
-            x = (x * 16L) + (int32_t) (*s++ - '0');
-          else if (*s >= 'A' && *s <= 'F')
-            x = (x * 16L) + (int32_t) (*s++ - 'A') + 10L;
-          else if (*s >= 'a' && *s <= 'f')
-            x = (x * 16L) + (int32_t) (*s++ - 'a') + 10L;
-          else
-            break;
-        }
     }
-    if (UNLIKELY(*s != '\0'))
-      return StrOp_ErrMsg(p, Str("invalid format"));
-    if (sgn) x = -x;
-    *p->indx = (MYFLT) x;
+  }
+  if (UNLIKELY(*s != '\0'))
+    return StrOp_ErrMsg(p, Str("invalid format"));
+  if (sgn) x = -x;
+  *p->indx = (MYFLT) x;
 
-    return OK;
+  return OK;
 }
 
 
