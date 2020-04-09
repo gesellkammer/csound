@@ -582,9 +582,12 @@ int32_t printf_opcode_set(CSOUND *csound, PRINTF_OP *p)
 
 int32_t printf_opcode_perf(CSOUND *csound, PRINTF_OP *p)
 {
-    if (*p->ktrig == p->prv_ktrig)
+    MYFLT ktrig = *p->ktrig;
+    if(ktrig == -1)
+      return (printf_opcode_(csound, p));
+    if(ktrig == p->prv_ktrig)
       return OK;
-    p->prv_ktrig = *p->ktrig;
+    p->prv_ktrig = ktrig;
     if (p->prv_ktrig > FL(0.0))
       return (printf_opcode_(csound, p));
     return OK;
