@@ -342,8 +342,8 @@ static const char *longUsageList[] = {
         "--aft-zero              set aftertouch to zero, not 127 (default)"),
     Str_noop("--limiter[=num]         include clipping in audio output"),
     Str_noop("--vbr                   set MPEG encoding to variable bitrate"),
-    Str_noop("--suppress-version      do not print version details")
-    Str_noop("--run-unit-tests         enable assertion opcodes and report test failures"),
+    Str_noop("--suppress-version      do not print version details"),
+    Str_noop("--run-unit-tests        enable assertion opcodes and report test failures"),
     Str_noop("                          (assertions are ignored by default)"),
     Str_noop("--help                  long help"),
     NULL};
