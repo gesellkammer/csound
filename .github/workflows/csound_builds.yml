@@ -496,6 +496,7 @@ jobs:
       LIBFLAC_VERSION: "1.4.3"
       LIBSNDFILE_VERSION: "1.2.2"
       LIBLO_VERSION: "0.35"
+      MACOS_DEPLOYMENT_TARGET: "11.0"
       DEPS_PREFIX: ${{ github.workspace }}/static-deps
     steps:
       - name: Checkout Csound
@@ -531,6 +532,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}" \
             -DBUILD_SHARED_LIBS=OFF \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DINSTALL_DOCS=OFF
@@ -543,6 +545,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}" \
             -DBUILD_SHARED_LIBS=OFF \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
           cmake --build vorbis-build -j"$(sysctl -n hw.ncpu)"
@@ -553,6 +556,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}" \
             -DBUILD_SHARED_LIBS=OFF \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DOPUS_BUILD_PROGRAMS=OFF \
@@ -565,6 +569,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}" \
             -DBUILD_SHARED_LIBS=OFF \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DWITH_OGG=ON \
@@ -581,6 +586,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}" \
             -DBUILD_SHARED_LIBS=OFF \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DBUILD_PROGRAMS=OFF \
@@ -616,7 +622,8 @@ jobs:
             --disable-examples \
             --disable-tools \
             --disable-doc \
-            CFLAGS="-arch arm64 -fPIC -O2"
+            CFLAGS="-arch arm64 -mmacosx-version-min=${MACOS_DEPLOYMENT_TARGET} -fPIC -O2" \
+            LDFLAGS="-arch arm64 -mmacosx-version-min=${MACOS_DEPLOYMENT_TARGET}"
           make -j"$(sysctl -n hw.ncpu)"
           make install
 
@@ -628,6 +635,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}" \
             -DBUILD_SHARED_LIBS=OFF \
             -DBUILD_PORTMIDI_TESTS=OFF
           cmake --build portmidi-build -j"$(sysctl -n hw.ncpu)"
@@ -638,6 +646,7 @@ jobs:
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET}" \
             -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
             -DPortMidi_LIBRARY="${DEPS_PREFIX}/lib/libportmidi.a" \
             -DPortMidi_INCLUDE_DIR="${DEPS_PREFIX}/include" \
