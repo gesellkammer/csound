@@ -8,6 +8,7 @@ on:
     branches:
       - master
       - develop
+      - minimal-builds
   pull_request:
     branches:
       - develop
