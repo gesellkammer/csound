@@ -479,6 +479,236 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  # macOS minimal – native CoreAudio/CoreMIDI + statically linked dependencies
+  #
+  # PortMidi, libsndfile's codec chain, and liblo are built as arm64 static
+  # libraries. The resulting artifact depends only on Apple system frameworks.
+  macos_minimal_build:
+    name: macOS arm64 – CoreAudio + CoreMIDI + MIDI + OSC (self-contained)
+    runs-on: macos-14
+    needs: update_version
+    env:
+      PORTMIDI_VERSION: "2.0.5"
+      LIBOGG_VERSION: "1.3.5"
+      LIBVORBIS_VERSION: "1.3.7"
+      LIBOPUS_VERSION: "1.4"
+      LIBFLAC_VERSION: "1.4.3"
+      LIBSNDFILE_VERSION: "1.2.2"
+      LIBLO_VERSION: "0.35"
+      DEPS_PREFIX: ${{ github.workspace }}/static-deps
+    steps:
+      - name: Checkout Csound
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          submodules: true
+
+      - name: Install build tools
+        run: brew install autoconf automake bison flex libtool
+
+      - name: Build static libsndfile and codec chain
+        run: |
+          mkdir -p sources
+          curl -fsSL \
+            "https://downloads.xiph.org/releases/ogg/libogg-${LIBOGG_VERSION}.tar.gz" \
+            | tar -xz -C sources
+          curl -fsSL \
+            "https://downloads.xiph.org/releases/vorbis/libvorbis-${LIBVORBIS_VERSION}.tar.gz" \
+            | tar -xz -C sources
+          curl -fsSL \
+            "https://downloads.xiph.org/releases/opus/opus-${LIBOPUS_VERSION}.tar.gz" \
+            | tar -xz -C sources
+          curl -fsSL \
+            "https://downloads.xiph.org/releases/flac/flac-${LIBFLAC_VERSION}.tar.xz" \
+            | tar -xJ -C sources
+          curl -fsSL \
+            "https://github.com/libsndfile/libsndfile/releases/download/${LIBSNDFILE_VERSION}/libsndfile-${LIBSNDFILE_VERSION}.tar.xz" \
+            | tar -xJ -C sources
+
+          cmake -B ogg-build -S "sources/libogg-${LIBOGG_VERSION}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DINSTALL_DOCS=OFF
+          cmake --build ogg-build -j"$(sysctl -n hw.ncpu)"
+          cmake --install ogg-build
+
+          cmake -B vorbis-build -S "sources/libvorbis-${LIBVORBIS_VERSION}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
+            -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          cmake --build vorbis-build -j"$(sysctl -n hw.ncpu)"
+          cmake --install vorbis-build
+
+          cmake -B opus-build -S "sources/opus-${LIBOPUS_VERSION}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DOPUS_BUILD_PROGRAMS=OFF \
+            -DOPUS_BUILD_TESTING=OFF
+          cmake --build opus-build -j"$(sysctl -n hw.ncpu)"
+          cmake --install opus-build
+
+          cmake -B flac-build -S "sources/flac-${LIBFLAC_VERSION}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
+            -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DWITH_OGG=ON \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TESTING=OFF \
+            -DINSTALL_MANPAGES=OFF
+          cmake --build flac-build -j"$(sysctl -n hw.ncpu)"
+          cmake --install flac-build
+
+          cmake -B sndfile-build -S "sources/libsndfile-${LIBSNDFILE_VERSION}" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
+            -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DBUILD_PROGRAMS=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TESTING=OFF \
+            -DENABLE_EXTERNAL_LIBS=ON \
+            -DENABLE_MPEG=OFF
+          cmake --build sndfile-build -j"$(sysctl -n hw.ncpu)"
+          cmake --install sndfile-build
+
+          # Csound links libsndfile as a single archive; absorb its codec
+          # dependencies so archive resolution order cannot drop them.
+          D="${DEPS_PREFIX}/lib"
+          libtool -static -o "${D}/libsndfile_merged.a" \
+            "${D}/libsndfile.a" \
+            "${D}/libFLAC.a" \
+            "${D}/libvorbisenc.a" \
+            "${D}/libvorbis.a" \
+            "${D}/libogg.a" \
+            "${D}/libopus.a"
+          mv "${D}/libsndfile_merged.a" "${D}/libsndfile.a"
+
+      - name: Build static liblo
+        run: |
+          curl -fsSL \
+            "https://github.com/radarsat1/liblo/releases/download/${LIBLO_VERSION}/liblo-${LIBLO_VERSION}.tar.gz" \
+            | tar -xz -C sources
+          cd "sources/liblo-${LIBLO_VERSION}"
+          ./configure \
+            --prefix="${DEPS_PREFIX}" \
+            --enable-static \
+            --disable-shared \
+            --disable-examples \
+            --disable-tools \
+            --disable-doc \
+            CFLAGS="-arch arm64 -fPIC -O2"
+          make -j"$(sysctl -n hw.ncpu)"
+          make install
+
+      - name: Build static PortMidi
+        run: |
+          git clone --depth 1 --branch "v${PORTMIDI_VERSION}" \
+            https://github.com/PortMidi/portmidi.git portmidi
+          cmake -B portmidi-build -S portmidi \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_PORTMIDI_TESTS=OFF
+          cmake --build portmidi-build -j"$(sysctl -n hw.ncpu)"
+          cmake --install portmidi-build
+
+      - name: Configure minimal Csound
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
+            -DPortMidi_LIBRARY="${DEPS_PREFIX}/lib/libportmidi.a" \
+            -DPortMidi_INCLUDE_DIR="${DEPS_PREFIX}/include" \
+            -DSndFile_LIBRARY="${DEPS_PREFIX}/lib/libsndfile.a" \
+            -DSndFile_INCLUDE_DIR="${DEPS_PREFIX}/include" \
+            -DLibLO_LIBRARY="${DEPS_PREFIX}/lib/liblo.a" \
+            -DLibLO_INCLUDE_DIR="${DEPS_PREFIX}/include" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-framework,CoreAudio -Wl,-framework,CoreFoundation -Wl,-framework,CoreMidi -Wl,-framework,CoreServices" \
+            -DBUILD_STATIC_LIBRARY=ON \
+            -DBUILD_PLUGINS=ON \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_UTILITIES=OFF \
+            -DBUILD_VIRTUAL_KEYBOARD=OFF \
+            -DBUILD_JAVA_INTERFACE=OFF \
+            -DBUILD_PYTHON_INTERFACE=OFF \
+            -DINSTALL_PYTHON_INTERFACE=OFF \
+            -DBUILD_LUA_INTERFACE=OFF \
+            -DBUILD_CSBEATS=OFF \
+            -DBUILD_OSC_OPCODES=ON \
+            -DUSE_LIBSNDFILE=ON \
+            -DUSE_STATIC_DEPS=OFF \
+            -DUSE_LIBSAMPLERATE=OFF \
+            -DUSE_CURL=OFF \
+            -DUSE_GETTEXT=OFF \
+            -DUSE_PORTMIDI=ON \
+            -DUSE_PORTAUDIO=OFF \
+            -DUSE_COREMIDI=ON \
+            -DUSE_AUDIOUNIT=ON \
+            -DUSE_IPMIDI=OFF \
+            -DUSE_JACK=OFF \
+            -DUSE_ALSA=OFF \
+            -DUSE_PULSEAUDIO=OFF \
+            -DUSE_PIPEWIRE=OFF
+
+      - name: Build Csound
+        run: cmake --build build -j"$(sysctl -n hw.ncpu)"
+
+      - name: Verify static dependency linkage
+        run: |
+          for binary in \
+            build/CsoundLib64.framework/CsoundLib64 \
+            build/libosc.dylib \
+            build/libpmidi.dylib; do
+            lipo -archs "${binary}" | grep -Fx arm64
+            otool -L "${binary}"
+          done
+
+          if otool -L build/CsoundLib64.framework/CsoundLib64 | grep -q 'libsndfile'; then
+            echo "CsoundLib64 is dynamically linked to libsndfile"
+            exit 1
+          fi
+          if otool -L build/libosc.dylib | grep -q 'liblo'; then
+            echo "libosc.dylib is dynamically linked to liblo"
+            exit 1
+          fi
+          if otool -L build/libpmidi.dylib | grep -q 'libportmidi'; then
+            echo "libpmidi.dylib is dynamically linked to PortMidi"
+            exit 1
+          fi
+
+      - name: Collect artefacts
+        run: |
+          mkdir -p dist/plugins
+          cp build/csound dist/
+          cp -R build/CsoundLib64.framework dist/
+          cp build/libCsoundLib64.a dist/
+          find build -maxdepth 1 -name '*.dylib' -exec cp {} dist/plugins/ \;
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: csound-macos-minimal-arm64
+          path: dist/
+          if-no-files-found: error
+
   iOS_build:
     name: Csound for iOS
     runs-on: macos-latest
@@ -1321,6 +1551,7 @@ jobs:
         android-release,
         bare_arm_brew,
         linux_minimal_build,
+        macos_minimal_build,
       ]
     env:
       CSOUND_VERSION: ${{ needs.update_version.outputs.version }}
@@ -1379,6 +1610,12 @@ jobs:
           name: csound-linux-minimal-x86_64
           path: csound-linux-minimal-x86_64-${{env.CSOUND_VERSION}}
 
+      - name: Download macOS minimal artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: csound-macos-minimal-arm64
+          path: csound-macos-minimal-arm64-${{env.CSOUND_VERSION}}
+
       - name: Zip release directories
         run: |
           zip -r csound-windows-${{env.CSOUND_VERSION}}.zip csound-windows-${{env.CSOUND_VERSION}}
@@ -1388,6 +1625,7 @@ jobs:
           zip -r csound-android-${{env.CSOUND_VERSION}}.zip csound-android-${{env.CSOUND_VERSION}}
           zip -r csound-arm-cortex-m7-${{env.CSOUND_VERSION}}.zip csound-arm-cortex-m7-${{env.CSOUND_VERSION}}
           zip -r csound-linux-minimal-x86_64-${{env.CSOUND_VERSION}}.zip csound-linux-minimal-x86_64-${{env.CSOUND_VERSION}}
+          zip -r csound-macos-minimal-arm64-${{env.CSOUND_VERSION}}.zip csound-macos-minimal-arm64-${{env.CSOUND_VERSION}}
 
       - name: List release artifacts
         run: ls -l
@@ -1407,4 +1645,5 @@ jobs:
             csound-android-${{env.CSOUND_VERSION}}.zip
             csound-arm-cortex-m7-${{env.CSOUND_VERSION}}.zip
             csound-linux-minimal-x86_64-${{env.CSOUND_VERSION}}.zip
+            csound-macos-minimal-arm64-${{env.CSOUND_VERSION}}.zip
             
