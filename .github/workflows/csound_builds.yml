@@ -527,6 +527,7 @@ jobs:
             | tar -xJ -C sources
 
           cmake -B ogg-build -S "sources/libogg-${LIBOGG_VERSION}" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
@@ -537,6 +538,7 @@ jobs:
           cmake --install ogg-build
 
           cmake -B vorbis-build -S "sources/libvorbis-${LIBVORBIS_VERSION}" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_PREFIX_PATH="${DEPS_PREFIX}" \
@@ -547,6 +549,7 @@ jobs:
           cmake --install vorbis-build
 
           cmake -B opus-build -S "sources/opus-${LIBOPUS_VERSION}" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${DEPS_PREFIX}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
