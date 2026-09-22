@@ -1655,6 +1655,11 @@ struct CSOUND_ {
   void *rtRecord_userdata;
   void *rtPlay_userdata;
   jmp_buf exitjmp;
+  jmp_buf eventExitjmp;              /* armed by realtime init/reinit on the
+                                        event (instrument alloc) thread */
+  volatile int32_t exitjmpRequested; /* exit deferred to the performance
+                                        thread by that init thread */
+  int32_t exitjmpValue;              /* value csoundPerformKsmps must return */
   SRTBLK *frstbp;
   int32_t sectcnt;
   int32_t inerrcnt, synterrcnt, perferrcnt;
@@ -1820,7 +1825,6 @@ struct CSOUND_ {
   CORFIL *expanded_sco; /* output of preprocessor */
   char *filedir[256];   /* for location directory */
   void *message_buffer;
-  int32_t jumpset;
   int32_t info_message_request;
   int32_t modules_loaded;
   MYFLT _system_sr;

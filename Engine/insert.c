@@ -548,10 +548,26 @@ static void no_op(CSOUND *csound, int32_t attr,
 /* do init pass for this instr */
 static int32_t init_pass(CSOUND *csound, INSDS *ip) {
   int32_t error = 0;
-  OPDS *ids = csound->ids;
-  INSDS *curip = csound->curip;
+  OPDS *volatile ids = csound->ids;
+  INSDS *volatile curip = csound->curip;
+  int32_t jumped;
   if(csound->oparms->realtime)
     csoundLockMutex(csound->init_pass_threadlock);
+  /* Realtime init runs on the event thread while the performance thread owns
+     csound->exitjmp; a longjmp here would cross threads and corrupt its stack.
+     Catch it locally and leave a deferred exit for the performance thread. */
+  if (csound->oparms->realtime && csound->event_insert_thread != NULL) {
+    if (UNLIKELY((jumped = setjmp(csound->eventExitjmp)) != 0)) {
+      csound->ids = ids;
+      csound->curip = curip;
+      csound->mode = 0;
+      csound->exitjmpValue = ((jumped - CSOUND_EXITJMP_SUCCESS) |
+                              CSOUND_EXITJMP_SUCCESS);
+      csound->exitjmpRequested = 1;
+      csoundUnlockMutex(csound->init_pass_threadlock);
+      return 1;
+    }
+  }
   csound->curip = ip;
   csound->ids = (OPDS *)ip;
   while (error == 0 && (csound->ids = csound->ids->nxti) != NULL) {
@@ -581,8 +597,23 @@ int32_t rireturn(CSOUND *csound, void *p);
 /* do reinit pass */
 static int32_t reinit_pass(CSOUND *csound, INSDS *ip, OPDS *ids) {
   int32_t error = 0;
+  int32_t jumped;
   if(csound->oparms->realtime) {
     csoundLockMutex(csound->init_pass_threadlock);
+  }
+  /* See init_pass(): catch a realtime event-thread longjmp locally. */
+  if (csound->oparms->realtime && csound->event_insert_thread != NULL) {
+    if (UNLIKELY((jumped = setjmp(csound->eventExitjmp)) != 0)) {
+      csound->ids = ids;
+      csound->curip = ip;
+      csound->mode = 0;
+      csound->reinitflag = ip->reinitflag = 0;
+      csound->exitjmpValue = ((jumped - CSOUND_EXITJMP_SUCCESS) |
+                              CSOUND_EXITJMP_SUCCESS);
+      csound->exitjmpRequested = 1;
+      csoundUnlockMutex(csound->init_pass_threadlock);
+      return 1;
+    }
   }
   /* Each queued pass owns a complete reinit interval. An earlier queued pass
      may already have cleared these flags before this one starts. */

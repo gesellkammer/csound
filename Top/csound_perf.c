@@ -416,12 +416,21 @@ int32_t kperf(CSOUND *csound) {
                         "has not been called\n"));
     return CSOUND_ERROR;
   }
-  if (csound->jumpset == 0) {
+  {
     int32_t returnValue;
-    csound->jumpset = 1;
-    /* setup jmp for return after an exit() */
+    /* Re-arm the exit jump on every call. exitnow() (and other longjmp
+       sources) may fire long after the first call's frame has returned; a
+       stale csound->exitjmp would then jump into a dead frame and corrupt the
+       stack. */
     if (UNLIKELY((returnValue = setjmp(csound->exitjmp))))
       return ((returnValue - CSOUND_EXITJMP_SUCCESS) | CSOUND_EXITJMP_SUCCESS);
+  }
+  /* A realtime instrument init on the event thread cannot longjmp into this
+     thread's frame; it left the return value here instead. */
+  if (UNLIKELY(csound->exitjmpRequested)) {
+    int32_t v = csound->exitjmpValue;
+    csound->exitjmpRequested = 0;
+    return v;
   }
   if (!csound->oparms->realtime) // no API lock in realtime mode
     csoundLockMutex(csound->API_lock);

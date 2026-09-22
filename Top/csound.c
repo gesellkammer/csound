@@ -763,6 +763,15 @@ static const CSOUND cenviron_ = {
 #else
   {0},
 #endif
+#if defined(MSVC) ||defined(__POWERPC__) || defined(MACOSX)
+  {0},
+#elif defined(LINUX)
+  {{{0}}},        /*  eventExitjmp of type jmp_buf */
+#else
+  {0},
+#endif
+  0,              /*  exitjmpRequested   */
+  0,              /*  exitjmpValue       */
   NULL,           /*  frstbp              */
   0,              /*  sectcnt             */
   0, 0, 0, 0,     /*  inerrcnt, synterrcnt, perferrcnt, total_assert_cnt */
@@ -1074,7 +1083,6 @@ static const CSOUND cenviron_ = {
   NULL,           /* output of preprocessor */
   {NULL},         /* filedir */
   NULL,           /* message buffer struct */
-  0,              /* jumpset */
   0,              /* info_message_request */
   0,              /* modules loaded */
   -1,             /* audio system sr */
@@ -1144,6 +1152,18 @@ void csoundLongJmp(CSOUND *csound, int32_t retval) {
   // printf("**** n = %d\n", n);
   if (!n)
     n = CSOUND_EXITJMP_SUCCESS;
+
+  /* In realtime mode instrument init and reinit run on the event thread while
+     the performance thread owns exitjmp. Jumping across threads into a frame
+     that never armed exitjmp would corrupt the performance thread's stack.
+     Use the jmp_buf armed by init_pass()/reinit_pass() on this thread instead;
+     they turn the jump into a deferred exit for the performance thread. */
+  if (csound->oparms != NULL && csound->oparms->realtime &&
+      csound->event_insert_thread != NULL && csound->mode == 1) {
+    csound->engineStatus |= CS_STATE_JMP;
+    // printf("**** event longjmp with %d\n", n);
+    longjmp(csound->eventExitjmp, n);
+  }
 
   /* Realtime init owns these fields on the event thread. A performance-time
      exit may arrive while that thread is inside an opcode, so cleanup defers
@@ -1968,6 +1988,8 @@ static void reset(CSOUND *csound) {
 #endif
   csound->enableHostImplementedMIDIIO = saved_env->enableHostImplementedMIDIIO;
   memcpy(&(csound->exitjmp), &(saved_env->exitjmp), sizeof(jmp_buf));
+  csound->exitjmpRequested = 0;
+  csound->exitjmpValue = 0;
   csound->memalloc_db = saved_env->memalloc_db;
   csound->message_buffer =
       saved_env->message_buffer; /*VL 19.06.21 keep msg buffer */
